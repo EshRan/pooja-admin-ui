@@ -218,11 +218,14 @@ export const OccasionsList: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
-                            <input
+                            <select
                                 {...register('category')}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-                                placeholder="e.g. Festival"
-                            />
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white"
+                            >
+                                <option value="">-- Select Category --</option>
+                                <option value="FESTIVE">FESTIVE</option>
+                                <option value="MARRIAGE">MARRIAGE</option>
+                            </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">S3 Image Key/URL</label>

@@ -9,7 +9,7 @@ import { Modal } from '../../components/ui/Modal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Search, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, AlertCircle } from 'lucide-react';
 
 const mappingSchema = z.object({
     poojaItemId: z.coerce.number().min(1, 'Please select an Item'),
@@ -28,8 +28,9 @@ export const MappingsList: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingMapping, setEditingMapping] = useState<PoojaItemOccasionMapping | null>(null);
 
-    const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<MappingFormValues>({
+    const { register, handleSubmit, reset, formState: { errors, isSubmitting }, setValue } = useForm<MappingFormValues>({
         resolver: zodResolver(mappingSchema) as any,
         defaultValues: { isActive: true, poojaItemId: 0, occasionId: 0 }
     });
@@ -62,13 +63,23 @@ export const MappingsList: React.FC = () => {
         (m.occasion?.occasionName || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const handleOpenModal = () => {
-        reset({ isActive: true, poojaItemId: 0, occasionId: 0 });
+    const handleOpenModal = (mapping?: PoojaItemOccasionMapping) => {
+        if (mapping) {
+            setEditingMapping(mapping);
+            setValue('poojaItemId', mapping.poojaItem?.id || 0);
+            setValue('occasionId', mapping.occasion?.id || 0);
+            setValue('notes', mapping.notes || '');
+            setValue('isActive', mapping.isActive ?? true);
+        } else {
+            setEditingMapping(null);
+            reset({ isActive: true, poojaItemId: 0, occasionId: 0 });
+        }
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
+        setEditingMapping(null);
         reset();
     };
 
@@ -80,6 +91,11 @@ export const MappingsList: React.FC = () => {
             if (!selectedItem || !selectedOccasion) {
                 alert("Invalid Item or Occasion selection");
                 return;
+            }
+
+            if (editingMapping && editingMapping.id) {
+                // Since Mappings API lacks a 'PUT' endpoint, we simulate Edit via Delete + Create
+                await mappingService.delete(editingMapping.id);
             }
 
             await mappingService.create(
@@ -190,6 +206,13 @@ export const MappingsList: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end space-x-2">
                                                 <button
+                                                    onClick={() => handleOpenModal(mapping)}
+                                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
                                                     onClick={() => mapping.id && handleDelete(mapping.id)}
                                                     className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                                                     title="Delete"
@@ -209,7 +232,7 @@ export const MappingsList: React.FC = () => {
             <Modal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
-                title={'Add New Mapping'}
+                title={editingMapping ? 'Edit Mapping' : 'Add New Mapping'}
             >
                 <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4">
                     <div>
