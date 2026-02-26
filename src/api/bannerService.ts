@@ -12,13 +12,25 @@ export const bannerService = {
         return response.data;
     },
 
-    create: async (item: Banner): Promise<Banner> => {
-        const response = await apiClient.post('/api/banners/multiple', [item]);
-        return response.data[0];
+    create: async (item: Banner, image?: File): Promise<Banner> => {
+        const formData = new FormData();
+        formData.append('data', new Blob([JSON.stringify(item)], { type: 'application/json' }));
+        if (image) formData.append('image', image);
+
+        const response = await apiClient.post('/api/banners', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
     },
 
-    update: async (id: number, item: Partial<Banner>): Promise<Banner> => {
-        const response = await apiClient.put(`/api/banners/${id}`, item);
+    update: async (id: number, item: Partial<Banner>, image?: File): Promise<Banner> => {
+        const formData = new FormData();
+        formData.append('data', new Blob([JSON.stringify(item)], { type: 'application/json' }));
+        if (image) formData.append('image', image);
+
+        const response = await apiClient.put(`/api/banners/${id}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         return response.data;
     },
 

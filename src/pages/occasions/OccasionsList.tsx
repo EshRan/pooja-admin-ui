@@ -5,7 +5,8 @@ import { Modal } from '../../components/ui/Modal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Search, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, AlertCircle, ImageIcon } from 'lucide-react';
+import { getS3ImageUrl, getS3ImageName } from '../../utils/s3';
 
 const occasionSchema = z.object({
     occasionCode: z.string().optional(),
@@ -24,6 +25,7 @@ export const OccasionsList: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingOccasion, setEditingOccasion] = useState<Occasion | null>(null);
+    const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
     const { register, handleSubmit, reset, formState: { errors, isSubmitting }, setValue } = useForm<OccasionFormValues>({
         resolver: zodResolver(occasionSchema) as any,
@@ -56,27 +58,31 @@ export const OccasionsList: React.FC = () => {
         if (occasion) {
             setEditingOccasion(occasion);
             (Object.keys(occasionSchema.shape) as Array<keyof OccasionFormValues>).forEach(key => {
-                setValue(key as keyof OccasionFormValues, occasion[key as keyof Occasion] as any);
+                if (key !== 's3ImageKey') {
+                    setValue(key as keyof OccasionFormValues, occasion[key as keyof Occasion] as any);
+                }
             });
         } else {
             setEditingOccasion(null);
             reset();
         }
+        setSelectedImage(null);
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingOccasion(null);
+        setSelectedImage(null);
         reset();
     };
 
     const onSubmit = async (data: OccasionFormValues) => {
         try {
             if (editingOccasion && editingOccasion.id) {
-                await occasionService.update(editingOccasion.id, data);
+                await occasionService.update(editingOccasion.id, data, selectedImage || undefined);
             } else {
-                await occasionService.create(data);
+                await occasionService.create(data as Occasion, selectedImage || undefined);
             }
             handleCloseModal();
             loadOccasions();
@@ -143,9 +149,18 @@ export const OccasionsList: React.FC = () => {
                     filteredOccasions.map((occasion) => (
                         <div key={occasion.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow group flex flex-col">
                             <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-800">{occasion.occasionName}</h3>
-                                    <span className="text-xs text-slate-500 mt-0.5 block">Code: {occasion.occasionCode || 'N/A'}</span>
+                                <div className="flex gap-4 items-start">
+                                    <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                        {occasion.s3ImageKey ? (
+                                            <img src={getS3ImageUrl(occasion.s3ImageKey) || ''} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <ImageIcon className="w-6 h-6 text-slate-300" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800">{occasion.occasionName}</h3>
+                                        <span className="text-xs text-slate-500 mt-0.5 block">Code: {occasion.occasionCode || 'N/A'}</span>
+                                    </div>
                                 </div>
                                 <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
@@ -228,13 +243,30 @@ export const OccasionsList: React.FC = () => {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">S3 Image Key/URL</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                S3 Image Key (Optional override)
+                                {editingOccasion?.s3ImageKey && (
+                                    <span className="font-normal text-[0.65rem] text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md break-all" title={getS3ImageName(editingOccasion.s3ImageKey)}>
+                                        Current: {getS3ImageName(editingOccasion.s3ImageKey)}
+                                    </span>
+                                )}
+                            </label>
                             <input
                                 {...register('s3ImageKey')}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
                                 placeholder="path/to/image.jpg"
                             />
                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Upload New Image</label>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        />
                     </div>
 
                     <div className="flex items-center mt-4">

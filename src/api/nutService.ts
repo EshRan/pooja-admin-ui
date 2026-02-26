@@ -12,13 +12,25 @@ export const nutService = {
         return response.data;
     },
 
-    create: async (item: Nut): Promise<Nut> => {
-        const response = await apiClient.post('/api/nuts', item);
+    create: async (item: Nut, image?: File): Promise<Nut> => {
+        const formData = new FormData();
+        formData.append('data', new Blob([JSON.stringify(item)], { type: 'application/json' }));
+        if (image) formData.append('image', image);
+
+        const response = await apiClient.post('/api/nuts', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         return response.data;
     },
 
-    update: async (id: number, item: Partial<Nut>): Promise<Nut> => {
-        const response = await apiClient.put(`/api/nuts/${id}`, item);
+    update: async (id: number, item: Partial<Nut>, image?: File): Promise<Nut> => {
+        const formData = new FormData();
+        formData.append('data', new Blob([JSON.stringify(item)], { type: 'application/json' }));
+        if (image) formData.append('image', image);
+
+        const response = await apiClient.put(`/api/nuts/${id}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         return response.data;
     },
 

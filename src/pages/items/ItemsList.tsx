@@ -5,7 +5,8 @@ import { Modal } from '../../components/ui/Modal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Search, Edit2, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, AlertCircle, ImageIcon } from 'lucide-react';
+import { getS3ImageUrl, getS3ImageName } from '../../utils/s3';
 
 const itemSchema = z.object({
     itemCode: z.string().optional(),
@@ -16,6 +17,7 @@ const itemSchema = z.object({
     quantityUnit: z.string().optional(),
     isInStock: z.boolean().optional(),
     stockInQuantity: z.coerce.number().min(0).optional(),
+    s3ImageKey: z.string().optional(),
 });
 
 type ItemFormValues = z.infer<typeof itemSchema>;
@@ -26,6 +28,7 @@ export const ItemsList: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<PoojaItem | null>(null);
+    const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
     const { register, handleSubmit, reset, formState: { errors, isSubmitting }, setValue } = useForm<ItemFormValues>({
         resolver: zodResolver(itemSchema) as any,
@@ -59,27 +62,31 @@ export const ItemsList: React.FC = () => {
         if (item) {
             setEditingItem(item);
             (Object.keys(itemSchema.shape) as Array<keyof ItemFormValues>).forEach(key => {
-                setValue(key as keyof ItemFormValues, item[key as keyof PoojaItem] as any);
+                if (key !== 's3ImageKey') {
+                    setValue(key as keyof ItemFormValues, item[key as keyof PoojaItem] as any);
+                }
             });
         } else {
             setEditingItem(null);
             reset();
         }
+        setSelectedImage(null);
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingItem(null);
+        setSelectedImage(null);
         reset();
     };
 
     const onSubmit = async (data: ItemFormValues) => {
         try {
             if (editingItem && editingItem.id) {
-                await itemService.update(editingItem.id, data);
+                await itemService.update(editingItem.id, data, selectedImage || undefined);
             } else {
-                await itemService.create(data);
+                await itemService.create(data as PoojaItem, selectedImage || undefined);
             }
             handleCloseModal();
             loadItems();
@@ -137,6 +144,7 @@ export const ItemsList: React.FC = () => {
                         <thead className="bg-slate-50">
                             <tr>
                                 <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+                                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Image</th>
                                 <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
                                 <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Price</th>
                                 <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
@@ -146,7 +154,7 @@ export const ItemsList: React.FC = () => {
                         <tbody className="bg-white divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-500">
+                                    <td colSpan={6} className="px-6 py-10 text-center text-slate-500">
                                         <div className="flex justify-center items-center">
                                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                                             <span className="ml-3">Loading items...</span>
@@ -155,7 +163,7 @@ export const ItemsList: React.FC = () => {
                                 </tr>
                             ) : filteredItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-500">
+                                    <td colSpan={6} className="px-6 py-10 text-center text-slate-500">
                                         <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-3" />
                                         <p>No items found.</p>
                                     </td>
@@ -167,6 +175,15 @@ export const ItemsList: React.FC = () => {
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-semibold text-slate-800">{item.itemName}</span>
                                                 <span className="text-xs text-slate-500 mt-0.5">Code: {item.itemCode || 'N/A'}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden">
+                                                {item.s3ImageKey ? (
+                                                    <img src={getS3ImageUrl(item.s3ImageKey) || ''} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <ImageIcon className="w-4 h-4 text-slate-300" />
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -256,11 +273,18 @@ export const ItemsList: React.FC = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Unit</label>
-                            <input
+                            <select
                                 {...register('quantityUnit')}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-                                placeholder="e.g. gms, kg, packs"
-                            />
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white"
+                            >
+                                <option value="">-- Select Unit --</option>
+                                <option value="gms">Grams (gms)</option>
+                                <option value="kg">Kilograms (kg)</option>
+                                <option value="ml">Milliliters (ml)</option>
+                                <option value="liters">Liters (l)</option>
+                                <option value="piece">Piece (pcs)</option>
+                                <option value="pack">Pack</option>
+                            </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Price</label>
@@ -291,6 +315,33 @@ export const ItemsList: React.FC = () => {
                             <label htmlFor="isInStock" className="ml-2 block text-sm text-slate-700">
                                 Item is available
                             </label>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                                S3 Image Key (Optional override)
+                                {editingItem?.s3ImageKey && (
+                                    <span className="font-normal text-[0.65rem] text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md break-all" title={getS3ImageName(editingItem.s3ImageKey)}>
+                                        Current: {getS3ImageName(editingItem.s3ImageKey)}
+                                    </span>
+                                )}
+                            </label>
+                            <input
+                                {...register('s3ImageKey')}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                                placeholder="path/to/image.jpg"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Upload New Image</label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                            />
                         </div>
                     </div>
 
