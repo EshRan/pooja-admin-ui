@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
+// In production (npm run build), use the hardcoded AWS EC2 IP
+// In development (npm run dev), use '' so the Vite proxy handles it and prevents CORS errors
+const baseURL = import.meta.env.PROD ? import.meta.env.VITE_API_BASE_URL : '';
 
 export const apiClient = axios.create({
     baseURL,

@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Package, Tags, ArrowLeftRight, Image, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import brandLogo from '../../assets/logo.png';
 
 const navItems = [
     { name: 'Pooja Items', path: '/items', icon: Package },
@@ -17,9 +18,9 @@ export const Sidebar: React.FC = () => {
     return (
         <div className="w-64 bg-slate-900 text-white flex flex-col h-full border-r border-slate-800">
             <div className="h-16 flex items-center px-6 border-b border-slate-800 shadow-sm bg-slate-950/50">
-                <Package className="w-6 h-6 text-blue-500 mr-3" />
+                <img src={brandLogo} alt="Rituals Basket Logo" className="w-8 h-8 mr-3 object-contain" />
                 <span className="text-xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                    InvAdmin
+                    Rituals Admin
                 </span>
             </div>
 
