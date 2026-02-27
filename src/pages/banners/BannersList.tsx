@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { bannerService } from '../../api/bannerService';
 import type { Banner } from '../../types/banner';
 import { Modal } from '../../components/ui/Modal';
+import { ImageModal } from '../../components/ui/ImageModal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -21,6 +22,7 @@ export const BannersList: React.FC = () => {
     const [banners, setBanners] = useState<Banner[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -75,10 +77,15 @@ export const BannersList: React.FC = () => {
 
     const onSubmit = async (data: BannerFormValues) => {
         try {
+            const payload = { ...data };
+            if (!payload.s3ImageKey || payload.s3ImageKey.trim() === '') {
+                delete payload.s3ImageKey;
+            }
+
             if (editingBanner && editingBanner.id) {
-                await bannerService.update(editingBanner.id, data, selectedImage || undefined);
+                await bannerService.update(editingBanner.id, payload, selectedImage || undefined);
             } else {
-                await bannerService.create(data as Banner, selectedImage || undefined);
+                await bannerService.create(payload as Banner, selectedImage || undefined);
             }
             handleCloseModal();
             loadBanners();
@@ -162,8 +169,14 @@ export const BannersList: React.FC = () => {
                             ) : (
                                 filteredBanners.map((banner) => (
                                     <tr key={banner.id} className="hover:bg-slate-50/80 transition-colors group">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="w-20 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden">
+                                        <td className="px-6 py-4 whitespace-nowrap hidden sm:table-cell">
+                                            <div
+                                                className={`w-16 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden ${banner.s3ImageKey ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all shadow-sm' : ''}`}
+                                                onClick={() => {
+                                                    const url = getS3ImageUrl(banner.s3ImageKey);
+                                                    if (url) setPreviewImage(url);
+                                                }}
+                                            >
                                                 {banner.s3ImageKey ? (
                                                     <img src={getS3ImageUrl(banner.s3ImageKey) || ''} alt="" className="w-full h-full object-cover" />
                                                 ) : (
@@ -286,6 +299,12 @@ export const BannersList: React.FC = () => {
                     </div>
                 </form>
             </Modal>
+
+            <ImageModal
+                isOpen={!!previewImage}
+                imageUrl={previewImage || ''}
+                onClose={() => setPreviewImage(null)}
+            />
         </div>
     );
 };

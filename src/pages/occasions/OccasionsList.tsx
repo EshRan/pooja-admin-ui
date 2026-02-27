@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { occasionService } from '../../api/occasionService';
 import type { Occasion } from '../../types/occasion';
 import { Modal } from '../../components/ui/Modal';
+import { ImageModal } from '../../components/ui/ImageModal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -24,6 +25,7 @@ export const OccasionsList: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [editingOccasion, setEditingOccasion] = useState<Occasion | null>(null);
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
@@ -79,10 +81,15 @@ export const OccasionsList: React.FC = () => {
 
     const onSubmit = async (data: OccasionFormValues) => {
         try {
+            const payload = { ...data };
+            if (!payload.s3ImageKey || payload.s3ImageKey.trim() === '') {
+                delete payload.s3ImageKey;
+            }
+
             if (editingOccasion && editingOccasion.id) {
-                await occasionService.update(editingOccasion.id, data, selectedImage || undefined);
+                await occasionService.update(editingOccasion.id, payload, selectedImage || undefined);
             } else {
-                await occasionService.create(data as Occasion, selectedImage || undefined);
+                await occasionService.create(payload as Occasion, selectedImage || undefined);
             }
             handleCloseModal();
             loadOccasions();
@@ -150,11 +157,17 @@ export const OccasionsList: React.FC = () => {
                         <div key={occasion.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow group flex flex-col">
                             <div className="flex justify-between items-start mb-4">
                                 <div className="flex gap-4 items-start">
-                                    <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                                    <div
+                                        className={`w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden ${occasion.s3ImageKey ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all shadow-sm' : ''}`}
+                                        onClick={() => {
+                                            const url = getS3ImageUrl(occasion.s3ImageKey);
+                                            if (url) setPreviewImage(url);
+                                        }}
+                                    >
                                         {occasion.s3ImageKey ? (
                                             <img src={getS3ImageUrl(occasion.s3ImageKey) || ''} alt="" className="w-full h-full object-cover" />
                                         ) : (
-                                            <ImageIcon className="w-6 h-6 text-slate-300" />
+                                            <ImageIcon className="w-4 h-4 text-slate-300" />
                                         )}
                                     </div>
                                     <div>
@@ -299,6 +312,12 @@ export const OccasionsList: React.FC = () => {
                     </div>
                 </form>
             </Modal>
+
+            <ImageModal
+                isOpen={!!previewImage}
+                imageUrl={previewImage || ''}
+                onClose={() => setPreviewImage(null)}
+            />
         </div>
     );
 };

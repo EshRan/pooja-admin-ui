@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { itemService } from '../../api/itemService';
 import type { PoojaItem } from '../../types/item';
 import { Modal } from '../../components/ui/Modal';
+import { ImageModal } from '../../components/ui/ImageModal';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -27,6 +28,7 @@ export const ItemsList: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [editingItem, setEditingItem] = useState<PoojaItem | null>(null);
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
@@ -83,10 +85,15 @@ export const ItemsList: React.FC = () => {
 
     const onSubmit = async (data: ItemFormValues) => {
         try {
+            const payload = { ...data };
+            if (!payload.s3ImageKey || payload.s3ImageKey.trim() === '') {
+                delete payload.s3ImageKey;
+            }
+
             if (editingItem && editingItem.id) {
-                await itemService.update(editingItem.id, data, selectedImage || undefined);
+                await itemService.update(editingItem.id, payload, selectedImage || undefined);
             } else {
-                await itemService.create(data as PoojaItem, selectedImage || undefined);
+                await itemService.create(payload as PoojaItem, selectedImage || undefined);
             }
             handleCloseModal();
             loadItems();
@@ -178,7 +185,13 @@ export const ItemsList: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden">
+                                            <div
+                                                className={`w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden ${item.s3ImageKey ? 'cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all shadow-sm' : ''}`}
+                                                onClick={() => {
+                                                    const url = getS3ImageUrl(item.s3ImageKey);
+                                                    if (url) setPreviewImage(url);
+                                                }}
+                                            >
                                                 {item.s3ImageKey ? (
                                                     <img src={getS3ImageUrl(item.s3ImageKey) || ''} alt="" className="w-full h-full object-cover" />
                                                 ) : (
@@ -363,6 +376,12 @@ export const ItemsList: React.FC = () => {
                     </div>
                 </form>
             </Modal>
+
+            <ImageModal
+                isOpen={!!previewImage}
+                imageUrl={previewImage || ''}
+                onClose={() => setPreviewImage(null)}
+            />
         </div>
     );
 };
